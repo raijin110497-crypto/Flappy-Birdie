@@ -3,310 +3,436 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spxplorer</title>
+  <title>Sprite Explorer • Spxplorer</title>
   <style>
-    body { margin: 0; padding: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: #6aabc5; font-family: 'Courier New', Courier, monospace; }
-    .page-shell { width: 100%; max-width: 1000px; padding: 24px; }
-    .hero-card { background: linear-gradient(to bottom, #6aabc5 0%, #87CEEB 100%); box-shadow: 0 0 20px rgba(0,0,0,0.3); border-radius: 12px; padding: 24px; color: #fff; }
-    .title { margin: 0 0 8px; font-size: 36px; text-align: center; }
-    .subtitle { margin: 0 0 16px; font-size: 16px; opacity: 0.95; text-align: center; }
-    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
-    .action-link { display: inline-block; background-color: #e60012; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; text-decoration: none; font-size: 15px; cursor: pointer; }
-    .action-link:hover { background-color: #c5000f; }
+    :root {
+      color-scheme: dark;
+      --bg: #111;
+      --panel: #1a1a1a;
+      --muted: #2a2a2a;
+      --text: #fff;
+      --soft: #cbd5e1;
+      --accent: #e60012;
+      --accent-2: #c5000f;
+      --ring: rgba(230,0,18,0.5);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    header {
+      position: sticky; top: 0; z-index: 5; backdrop-filter: blur(8px);
+      background: linear-gradient(180deg, rgba(17,17,17,0.9), rgba(17,17,17,0.6));
+      border-bottom: 1px solid #222; padding: 12px 16px;
+      display: grid; gap: 8px; align-items: center;
+    }
+    .toolbar {
+      display: grid; gap: 8px;
+    }
+    @media (min-width: 820px) {
+      .toolbar { grid-template-columns: 1fr auto auto; align-items: center; }
+    }
+    .title { margin: 0; font-size: 20px; font-weight: 700; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .btn {
+      background: var(--accent); color: #fff; border: none; padding: 10px 14px; border-radius: 10px;
+      font-weight: 600; cursor: pointer; transition: transform .05s ease, background .2s ease; font-size: 14px;
+    }
+    .btn:hover { background: var(--accent-2); }
+    .btn:active { transform: translateY(1px); }
+    .btn.secondary { background: #2b2b2b; color: #fff; }
+    .btn.secondary:hover { background: #333; }
+    .file { display: inline-flex; align-items: center; gap: 8px; }
+    input[type="file"] { display: none; }
+    .file label { background: var(--accent); color:#fff; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+    .file label:hover { background: var(--accent-2); }
+    .hint { color: var(--soft); font-size: 12px; opacity: 0.9; }
 
-    .uploader { border: 2px dashed rgba(255,255,255,0.6); border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 16px; background: rgba(255,255,255,0.08); }
-    .uploader.dragover { background: rgba(255,255,255,0.18); }
-    .uploader-input { display: none; }
-    .uploader-label { display: inline-block; background-color: #e60012; color: #fff; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+    main { padding: 12px; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px;
+    }
+    .card {
+      background: var(--panel); border: 1px solid #222; border-radius: 12px; overflow: hidden;
+      display: grid; grid-template-rows: 1fr auto; min-height: 150px; cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .card:focus, .card:hover { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px var(--ring); }
+    .thumb {
+      display: grid; place-items: center; background: #0d0d0d; height: 120px;
+    }
+    .thumb img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+    .meta { padding: 8px; border-top: 1px solid #222; font-size: 12px; color: var(--soft); display:flex; justify-content: space-between; gap:6px; }
+    .meta .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
 
-    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
-    .panel { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; min-height: 200px; }
-    .panel-title { margin: 0 0 10px; font-size: 16px; }
+    .status { margin-top: 8px; font-size: 12px; color: var(--soft); }
 
-    .asset-list { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 520px; overflow: auto; }
-    .asset-item { display: grid; grid-template-columns: 56px 1fr; gap: 8px; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.2); align-items: center; cursor: pointer; }
-    .asset-item:hover { background: rgba(0,0,0,0.3); }
-    .thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,0.1); }
-    .meta { overflow: hidden; }
-    .name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
-    .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-    .tag { background: rgba(255,255,255,0.15); padding: 2px 6px; border-radius: 999px; font-size: 11px; }
+    /* Modal */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: none; align-items: center; justify-content: center; padding: 16px; z-index: 20;
+      animation: fade .15s ease;
+    }
+    .modal-backdrop.open { display: flex; }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    .modal {
+      width: min(100%, 980px); background: var(--panel); border: 1px solid #222; border-radius: 14px; overflow: hidden;
+      display: grid; grid-template-rows: auto 1fr auto; max-height: 90vh;
+    }
+    .modal header { position: sticky; top: 0; background: #161616; border-bottom: 1px solid #222; padding: 12px 16px; display:flex; gap:8px; align-items:center; justify-content: space-between; }
+    .modal h2 { margin: 0; font-size: 16px; }
+    .modal .body { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 12px; overflow: auto; }
+    @media (min-width: 900px) { .modal .body { grid-template-columns: 60% 40%; } }
+    .canvas-wrap { background: #0d0d0d; border: 1px solid #222; border-radius: 12px; padding: 8px; display: grid; place-items: center; min-height: 280px; }
+    canvas { image-rendering: pixelated; max-width: 100%; background: transparent; }
 
-    .preview { display: grid; grid-template-rows: auto auto 1fr; gap: 12px; }
-    .canvas-wrap { display: grid; place-items: center; background: rgba(0,0,0,0.25); border-radius: 12px; min-height: 260px; overflow: hidden; }
-    canvas { background: transparent; max-width: 100%; }
+    .form { display: grid; gap: 10px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .field { display: grid; gap: 6px; }
+    .label { font-size: 12px; color: var(--soft); }
+    .input, select, .range { width: 100%; background: #101010; color: #fff; border: 1px solid #2a2a2a; border-radius: 10px; padding: 10px; font-size: 14px; }
+    .range { padding: 8px; }
+    .modal footer { padding: 12px; border-top: 1px solid #222; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
 
-    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .input { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.25); color: #fff; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
-    .btn { background-color: #e60012; color: #fff; border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 14px; }
-    .btn.secondary { background: rgba(255,255,255,0.15); }
-    .btn:hover { filter: brightness(0.95); }
-
-    .help { font-size: 12px; opacity: 0.9; margin: 0; }
-
-    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+    .map-box { background: var(--panel); border: 1px solid #222; border-radius: 12px; padding: 12px; margin-top: 12px; }
+    pre { margin: 0; max-height: 180px; overflow: auto; background: #0d0d0d; border: 1px solid #222; padding: 10px; border-radius: 8px; }
   </style>
 </head>
 <body>
-  <main class="page-shell">
-    <section class="hero-card" aria-labelledby="spxplorer-title">
-      <h1 id="spxplorer-title" class="title">Spxplorer</h1>
-      <p class="subtitle">Drop a .zip of your sprites and assets to preview animations and auto-tag files.</p>
-      <div class="actions">
-        <a class="action-link" href="Flappy%20Birdie.html">Play Mario Flappy Bird</a>
-        <a class="action-link" href="index.html">Go to Index</a>
+  <header>
+    <div class="toolbar">
+      <h1 class="title">Sprite Explorer • Spxplorer</h1>
+      <div class="controls">
+        <div class="file">
+          <label for="zipInput">Open ZIP</label>
+          <input id="zipInput" type="file" accept=".zip,application/zip,application/x-zip-compressed,application/octet-stream" />
+        </div>
+        <div class="file">
+          <label for="importInput" class="btn secondary" style="padding:10px 14px;">Import Config</label>
+          <input id="importInput" type="file" accept="application/json,.json" />
+        </div>
+        <button id="exportJsonBtn" class="btn secondary">Export JSON</button>
+        <button id="exportJsBtn" class="btn secondary">Export JS</button>
       </div>
+      <div class="status" id="status">Load a ZIP to begin. Offline, local-only. No uploads.</div>
+    </div>
+  </header>
 
-      <div id="dropzone" class="uploader" tabindex="0" aria-label="Upload a zip file">
-        <p class="help">Drag & drop a .zip here or</p>
-        <label class="uploader-label">
-          <input id="zipInput" class="uploader-input" type="file" accept=".zip" />
-          Choose ZIP
-        </label>
-      </div>
-
-      <div class="layout">
-        <aside class="panel">
-          <h3 class="panel-title">Assets</h3>
-          <div id="assetList" class="asset-list"></div>
-        </aside>
-        <section class="panel preview">
-          <h3 class="panel-title" id="previewTitle">Preview</h3>
-          <div class="controls">
-            <label>FPS <input id="fpsInput" class="input" type="number" min="1" max="60" step="1" value="12" /></label>
-            <label>Scale <input id="scaleInput" class="input" type="number" min="0.1" max="10" step="0.1" value="2" /></label>
-            <button id="playBtn" class="btn">Play</button>
-            <button id="stopBtn" class="btn secondary">Stop</button>
-            <button id="exportBtn" class="btn secondary">Export Tags JSON</button>
-          </div>
-          <div class="canvas-wrap">
-            <canvas id="previewCanvas" width="320" height="240" aria-label="Animation preview"></canvas>
-          </div>
-          <p class="help">Tips: Filenames like hero_run_0.png, hero_run_1.png will auto-group. Common keywords (idle, run, walk, jump, attack, hit, death, ui, bg, tile, enemy) are auto-tagged.</p>
-        </section>
-      </div>
-    </section>
+  <main>
+    <section class="grid" id="grid" aria-live="polite"></section>
+    <div class="map-box">
+      <strong>spriteMap</strong>
+      <pre id="mapPreview">{}</pre>
+    </div>
   </main>
 
+  <!-- Modal -->
+  <div class="modal-backdrop" id="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header>
+        <h2 id="modalTitle">Preview</h2>
+        <button id="closeModal" class="btn secondary">Close</button>
+      </header>
+      <div class="body">
+        <div class="canvas-wrap">
+          <canvas id="previewCanvas" width="512" height="384" aria-label="Sprite preview"></canvas>
+        </div>
+        <form class="form" id="metaForm" onsubmit="return false;">
+          <div class="field">
+            <label class="label">Sprite Name</label>
+            <input id="nameInput" class="input" placeholder="e.g. archerTower" />
+          </div>
+          <div class="row">
+            <div class="field">
+              <label class="label">Type</label>
+              <select id="typeInput">
+                <option value="tower">Tower</option>
+                <option value="enemy">Enemy</option>
+                <option value="projectile">Projectile</option>
+                <option value="decoration">Decoration</option>
+                <option value="terrain">Terrain</option>
+                <option value="ui">UI</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Frames (auto)</label>
+              <input id="framesInput" class="input" type="number" min="1" step="1" value="1" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label class="label">Speed (ms per frame)</label>
+              <input id="speedInput" class="input" type="number" min="16" max="1000" step="1" value="150" />
+            </div>
+            <div class="field">
+              <label class="label">Speed Slider</label>
+              <input id="speedRange" class="range" type="range" min="16" max="500" step="1" value="150" />
+            </div>
+          </div>
+          <div class="row3">
+            <button id="playBtn" class="btn" type="button">Play</button>
+            <button id="pauseBtn" class="btn secondary" type="button">Pause</button>
+            <button id="saveBtn" class="btn" type="button">Save to spriteMap</button>
+          </div>
+          <div class="row3">
+            <button id="dlFrameBtn" class="btn secondary" type="button">Download Current Frame</button>
+            <button id="dlAllBtn" class="btn secondary" type="button">Download All Frames (ZIP)</button>
+            <div></div>
+          </div>
+        </form>
+      </div>
+      <footer>
+        <span class="hint" id="fileInfo"></span>
+        <span class="hint">Tip: We auto-detect horizontal/vertical strips and transparent separators. Override frames if needed.</span>
+      </footer>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
   <script>
     (function(){
+      const gridEl = document.getElementById('grid');
+      const statusEl = document.getElementById('status');
+      const mapPreview = document.getElementById('mapPreview');
+
       const zipInput = document.getElementById('zipInput');
-      const dropzone = document.getElementById('dropzone');
-      const assetList = document.getElementById('assetList');
+      const importInput = document.getElementById('importInput');
+      const exportJsonBtn = document.getElementById('exportJsonBtn');
+      const exportJsBtn = document.getElementById('exportJsBtn');
+
+      const modal = document.getElementById('modal');
+      const closeModal = document.getElementById('closeModal');
       const canvas = document.getElementById('previewCanvas');
       const ctx = canvas.getContext('2d');
-      const fpsInput = document.getElementById('fpsInput');
-      const scaleInput = document.getElementById('scaleInput');
+      const nameInput = document.getElementById('nameInput');
+      const typeInput = document.getElementById('typeInput');
+      const framesInput = document.getElementById('framesInput');
+      const speedInput = document.getElementById('speedInput');
+      const speedRange = document.getElementById('speedRange');
       const playBtn = document.getElementById('playBtn');
-      const stopBtn = document.getElementById('stopBtn');
-      const exportBtn = document.getElementById('exportBtn');
-      const previewTitle = document.getElementById('previewTitle');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const saveBtn = document.getElementById('saveBtn');
+      const dlFrameBtn = document.getElementById('dlFrameBtn');
+      const dlAllBtn = document.getElementById('dlAllBtn');
+      const fileInfo = document.getElementById('fileInfo');
 
-      /**
-       * Internal state
-       */
-      let assets = []; // {id, name, path, type: 'image'|'sequence'|'json'|'other', tags: string[], url?, frames?: [{name,url}], width?, height?}
-      let selected = null; // selected asset id
-      let animRAF = null; let animIdx = 0; let animStart = 0; let lastTs = 0;
+      const SKIP_REGEX = /(^__MACOSX\/)||(\/(?:\._|\.DS_Store|Thumbs\.db)$)/i;
+      const IMG_REGEX = /\.(png|jpg|jpeg)$/i;
 
-      function sanitizeName(name){
-        return name.replace(/\\+/g,'/').replace(/^\//,'');
+      const state = {
+        assets: [], // {id,path,file(JSZipObject),name,thumb,ext,width?,height?}
+        spriteMap: {},
+        current: null, // asset
+        anim: { raf: 0, last: 0, idx: 0 }
+      };
+      window.spriteMap = state.spriteMap;
+
+      function extToMime(path){
+        const ext=(path.split('.').pop()||'').toLowerCase();
+        if(ext==='png') return 'image/png';
+        if(ext==='jpg'||ext==='jpeg') return 'image/jpeg';
+        return 'application/octet-stream';
+      }
+      async function fileToDataUrl(zfile, path){
+        try { const base64 = await zfile.async('base64'); return 'data:'+extToMime(path)+';base64,'+base64; }
+        catch { const blob = await zfile.async('blob'); return URL.createObjectURL(new Blob([blob],{type:extToMime(path)})); }
       }
 
-      function inferTagsFromName(name){
-        const n = name.toLowerCase();
-        const tags = new Set();
-        const tagMap = [
-          ['idle','idle'],['run','run'],['walk','walk'],['jump','jump'],['fall','fall'],['attack','attack'],['hit','hit'],['hurt','hurt'],['death','death'],['die','death'],
-          ['shoot','shoot'],['slash','slash'],['roll','roll'],['climb','climb'],
-          ['enemy','enemy'],['boss','boss'],['player','player'],['hero','player'],['npc','npc'],
-          ['ui','ui'],['hud','ui'],['button','ui'],['icon','ui'],
-          ['bg','background'],['background','background'],['parallax','background'],
-          ['tile','tileset'],['tiles','tileset'],['tileset','tileset'],['atlas','atlas'],
-          ['coin','coin'],['gem','gem'],['star','star'],['power','powerup'],['powerup','powerup']
-        ];
-        for (const [key, val] of tagMap){ if (n.includes(key)) tags.add(val); }
-        if (/\b(\d{2,})x(\d{2,})\b/.test(n)) tags.add('resolution');
-        if (n.endsWith('.json')) tags.add('json');
-        if (n.endsWith('.png')||n.endsWith('.jpg')||n.endsWith('.jpeg')||n.endsWith('.gif')) tags.add('image');
-        return Array.from(tags);
+      function setStatus(msg){ statusEl.textContent = msg; }
+      function updateMapPreview(){ mapPreview.textContent = JSON.stringify(state.spriteMap, null, 2); }
+
+      function clearGrid(){ gridEl.innerHTML=''; }
+      function addCard(asset){
+        const card = document.createElement('button'); card.type='button'; card.className='card'; card.title=asset.path;
+        const t = document.createElement('div'); t.className='thumb';
+        const img = document.createElement('img'); img.alt = asset.name; img.src = asset.thumb || '';
+        t.appendChild(img);
+        const meta = document.createElement('div'); meta.className='meta';
+        const name = document.createElement('span'); name.className='name'; name.textContent = asset.name;
+        const dim = document.createElement('span'); dim.textContent = asset.width && asset.height ? asset.width+'×'+asset.height : '';
+        meta.appendChild(name); meta.appendChild(dim);
+        card.appendChild(t); card.appendChild(meta);
+        card.addEventListener('click', ()=> openModal(asset));
+        gridEl.appendChild(card);
       }
 
-      function groupSequences(files){
-        const imageFiles = files.filter(f=>/\.(png|jpg|jpeg|gif)$/i.test(f.name));
-        const groups = new Map();
-        const singletons = [];
-        const seqRegex = /^(.*?)(?:[-_\s]?(?:frame|f|sprite|img)?)?[-_\s]?(\d{1,4})(?:@\d+)?\.(png|jpg|jpeg|gif)$/i;
-        for(const f of imageFiles){
-          const base = f.name.split('/').slice(0,-1).join('/');
-          const leaf = f.name.split('/').pop();
-          const m = leaf.match(seqRegex);
-          if(m){
-            const key = (base?base+'/':'') + m[1].replace(/[-_\s]+$/,'');
-            const idx = parseInt(m[2],10);
-            if(!groups.has(key)) groups.set(key, []);
-            groups.get(key).push({file:f, idx});
-          } else {
-            singletons.push(f);
-          }
+      async function makeThumbFromZFile(zfile, path){
+        const url = await fileToDataUrl(zfile, path);
+        const img = new Image(); img.decoding='async'; img.src = url; try{ await img.decode(); }catch{}
+        const tw = 256, th = 180; const c = document.createElement('canvas'); c.width=tw; c.height=th; const cx=c.getContext('2d');
+        const scale = Math.min(tw/img.width, th/img.height, 1);
+        const w = Math.max(1, Math.round(img.width*scale));
+        const h = Math.max(1, Math.round(img.height*scale));
+        const x = Math.floor((tw - w)/2); const y = Math.floor((th - h)/2);
+        cx.imageSmoothingEnabled = false; cx.clearRect(0,0,tw,th); cx.drawImage(img, x, y, w, h);
+        return { dataUrl: c.toDataURL('image/png'), width: img.width, height: img.height };
+      }
+
+      async function loadZip(file){
+        clearGrid(); setStatus('Reading ZIP…');
+        const zip = await JSZip.loadAsync(file).catch(()=>null);
+        if(!zip){ setStatus('Invalid ZIP.'); return; }
+        const entries = [];
+        zip.forEach((p, zf)=>{ if(!zf.dir) entries.push({ path: p.replace(/\\+/g,'/'), file: zf }); });
+        const images = entries.filter(e=> IMG_REGEX.test(e.path) && !/__MACOSX\//i.test(e.path) && !/(^|\/)\._/.test(e.path));
+        state.assets = [];
+        let i=0;
+        for(const e of images){
+          const name = e.path.split('/').pop();
+          const { dataUrl, width, height } = await makeThumbFromZFile(e.file, e.path).catch(()=>({dataUrl:'', width: undefined, height: undefined}));
+          const asset = { id: 'a'+(++i), path: e.path, file: e.file, name, thumb: dataUrl, ext: (name.split('.').pop()||'').toLowerCase(), width, height };
+          state.assets.push(asset); addCard(asset);
         }
-        const sequences = [];
-        groups.forEach((arr,key)=>{
-          arr.sort((a,b)=>a.idx-b.idx);
-          sequences.push({ key, frames: arr.map(x=>x.file) });
-        });
-        return { sequences, singletons };
+        setStatus('Loaded '+state.assets.length+' sprites. Tap any thumbnail to preview and tag.');
       }
 
-      async function blobUrl(zip, file){
-        const blob = await file.async('blob');
-        return URL.createObjectURL(blob);
+      function showModal(){ modal.classList.add('open'); }
+      function hideModal(){ modal.classList.remove('open'); stopAnim(); }
+
+      async function openModal(asset){
+        state.current = asset; nameInput.value = (asset.name||'').replace(/\.(png|jpg|jpeg)$/i,'');
+        typeInput.value = (state.spriteMap[nameInput.value]?.type) || 'tower';
+        speedInput.value = state.spriteMap[nameInput.value]?.speed || 150; speedRange.value = speedInput.value;
+        fileInfo.textContent = asset.path + (asset.width? (' • '+asset.width+'×'+asset.height): '');
+
+        const url = await fileToDataUrl(asset.file, asset.path);
+        const img = new Image(); img.decoding='async'; img.src = url; try{ await img.decode(); }catch{}
+        asset._img = img; // cache
+        const detected = detectFrames(img);
+        framesInput.value = detected.frames;
+        asset._slices = sliceFrames(img, detected.frames, detected.mode);
+        drawFrame(asset, 0);
+        showModal();
       }
 
-      function clearAnim(){ if (animRAF) { cancelAnimationFrame(animRAF); animRAF=null; } }
-
-      function drawImageToCanvas(img, scale=1){
-        const w = Math.round(img.width * scale);
-        const h = Math.round(img.height * scale);
-        const cw = canvas.width, ch = canvas.height;
-        ctx.clearRect(0,0,cw,ch);
-        const x = Math.floor((cw - w)/2); const y = Math.floor((ch - h)/2);
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, x, y, w, h);
-      }
-
-      function startSequenceAnimation(asset){
-        clearAnim();
-        const fps = Math.max(1, Math.min(60, Number(fpsInput.value)||12));
-        const scale = Math.max(0.1, Math.min(10, Number(scaleInput.value)||1));
-        const interval = 1000 / fps;
-        const frames = asset.frames;
-        const images = frames.map(f=>f._img).filter(Boolean);
-        if(images.length===0) return;
-        previewTitle.textContent = 'Preview: ' + asset.name + ' ('+fps+' fps)';
-        animIdx = 0; lastTs = 0;
+      function stopAnim(){ if(state.anim.raf){ cancelAnimationFrame(state.anim.raf); state.anim.raf=0; } }
+      function playAnim(){
+        stopAnim();
+        const speed = Math.max(16, Number(speedInput.value)||150);
+        const asset = state.current; if(!asset || !asset._img || !asset._slices) return;
+        state.anim.idx = 0; state.anim.last = 0;
         function step(ts){
-          if(!lastTs) lastTs = ts;
-          const dt = ts - lastTs;
-          if (dt >= interval) {
-            lastTs = ts;
-            const img = images[animIdx % images.length];
-            drawImageToCanvas(img, scale);
-            animIdx++;
-          }
-          animRAF = requestAnimationFrame(step);
+          if(!state.anim.last) state.anim.last = ts;
+          if(ts - state.anim.last >= speed){ state.anim.last = ts; drawFrame(asset, state.anim.idx++); }
+          state.anim.raf = requestAnimationFrame(step);
         }
-        animRAF = requestAnimationFrame(step);
+        state.anim.raf = requestAnimationFrame(step);
       }
 
-      function showSingleImage(asset){
-        clearAnim();
-        const scale = Math.max(0.1, Math.min(10, Number(scaleInput.value)||1));
-        previewTitle.textContent = 'Preview: ' + asset.name;
-        const img = asset._img; if(!img) return; drawImageToCanvas(img, scale);
+      function drawFrame(asset, idx){
+        const slices = asset._slices; if(!slices || !slices.length) return;
+        const s = slices[idx % slices.length];
+        const scale = Math.min(canvas.width/s.w, canvas.height/s.h, 4);
+        const w = Math.round(s.w * scale), h = Math.round(s.h * scale);
+        const x = Math.floor((canvas.width - w)/2), y = Math.floor((canvas.height - h)/2);
+        ctx.clearRect(0,0,canvas.width,canvas.height); ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(asset._img, s.x, s.y, s.w, s.h, x, y, w, h);
       }
 
-      function selectAsset(id){
-        const a = assets.find(x=>x.id===id); if(!a) return; selected = id;
-        document.querySelectorAll('.asset-item').forEach(el=>{ el.style.outline = el.dataset.id===id? '2px solid #e60012' : 'none'; });
-        if (a.type==='sequence') startSequenceAnimation(a); else if (a.type==='image') showSingleImage(a); else { clearAnim(); ctx.clearRect(0,0,canvas.width,canvas.height); previewTitle.textContent = 'Preview: ' + a.name; }
+      function detectTransparentSeparators(img){
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const cx = c.getContext('2d');
+        cx.drawImage(img,0,0);
+        const id = cx.getImageData(0,0,c.width,c.height).data;
+        const cols = []; const rows = [];
+        for(let x=0;x<c.width;x++){ let allZero=true; for(let y=0;y<c.height;y++){ if(id[(y*c.width+x)*4+3]!==0){ allZero=false; break; } } if(allZero) cols.push(x); }
+        for(let y=0;y<c.height;y++){ let allZero=true; for(let x=0;x<c.width;x++){ if(id[(y*c.width+x)*4+3]!==0){ allZero=false; break; } } if(allZero) rows.push(y); }
+        return {cols, rows};
       }
 
-      function renderAssetList(){
-        assetList.innerHTML='';
-        for (const a of assets){
-          const item = document.createElement('div');
-          item.className='asset-item'; item.dataset.id=a.id;
-          const img = document.createElement('img'); img.className='thumb';
-          if (a.type==='image') img.src = a.url; else if (a.type==='sequence' && a.frames[0] && a.frames[0].url) img.src = a.frames[0].url; else img.style.background='rgba(255,255,255,0.08)';
-          const meta = document.createElement('div'); meta.className='meta';
-          const name = document.createElement('p'); name.className='name'; name.textContent = a.name;
-          const tags = document.createElement('div'); tags.className='tags';
-          for (const t of a.tags){ const s=document.createElement('span'); s.className='tag'; s.textContent=t; tags.appendChild(s); }
-          const tagInput = document.createElement('input'); tagInput.className='input'; tagInput.placeholder='add tag, press Enter'; tagInput.style.marginTop='6px';
-          tagInput.addEventListener('keydown', (e)=>{
-            if(e.key==='Enter' && tagInput.value.trim()){
-              const val = tagInput.value.trim(); if(!a.tags.includes(val)) a.tags.push(val); tagInput.value=''; renderAssetList();
-            }
-          });
-          meta.appendChild(name); meta.appendChild(tags); meta.appendChild(tagInput);
-          item.appendChild(img); item.appendChild(meta);
-          item.addEventListener('click', ()=> selectAsset(a.id));
-          assetList.appendChild(item);
+      function detectFrames(img){
+        // 1) Simple strip detection
+        if(img.width % img.height === 0 && img.width/img.height <= 64){ return { frames: img.width/img.height, mode: 'horizontal' }; }
+        if(img.height % img.width === 0 && img.height/img.width <= 64){ return { frames: img.height/img.width, mode: 'vertical' }; }
+        // 2) Transparent separators
+        const sep = detectTransparentSeparators(img);
+        if(sep.cols.length>1){ // horizontal frames separated by transparent columns
+          const groups = groupSeparators(sep.cols); if(groups.count>1) return { frames: groups.count, mode: 'horizontal-separated', widths: groups.widths };
         }
+        if(sep.rows.length>1){ // vertical frames separated by transparent rows
+          const groups = groupSeparators(sep.rows); if(groups.count>1) return { frames: groups.count, mode: 'vertical-separated', heights: groups.widths };
+        }
+        // 3) Fallback to 1 frame
+        return { frames: 1, mode: 'single' };
+      }
+      function groupSeparators(list){
+        // list = indices of empty columns/rows. Split into segments where gaps > 1
+        const boundaries = [];
+        let start = 0;
+        for(let i=1;i<list.length;i++){ if(list[i] !== list[i-1]+1){ boundaries.push([list[start], list[i-1]]); start=i; } }
+        boundaries.push([list[start], list[list.length-1]]);
+        // segments are between these bands
+        const edges = [0, ...boundaries.flatMap(b=>[(b[0]+b[1])>>1]), Infinity];
+        const widths = [];
+        for(let i=0;i<edges.length-1;i++) widths.push(edges[i+1]-edges[i]);
+        const frames = Math.max(1, widths.length-1);
+        return { count: frames, widths };
       }
 
-      function asDataUrl(blob){
-        return new Promise((resolve)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.readAsDataURL(blob); });
+      function sliceFrames(img, frames, mode){
+        const out = [];
+        if(frames<=1) return [{x:0,y:0,w:img.width,h:img.height}];
+        if(mode === 'horizontal' || mode === 'horizontal-separated'){
+          const segW = Math.floor(img.width/frames);
+          for(let i=0;i<frames;i++){ out.push({x:i*segW,y:0,w:(i===frames-1? img.width-i*segW: segW), h:img.height}); }
+          return out;
+        }
+        if(mode === 'vertical' || mode === 'vertical-separated'){
+          const segH = Math.floor(img.height/frames);
+          for(let i=0;i<frames;i++){ out.push({x:0,y:i*segH,w:img.width,h:(i===frames-1? img.height-i*segH: segH)}); }
+          return out;
+        }
+        // fallback: horizontal guess if wider than tall, else vertical
+        if(img.width >= img.height){ const segW = Math.floor(img.width/frames); for(let i=0;i<frames;i++){ out.push({x:i*segW,y:0,w:(i===frames-1? img.width-i*segW: segW), h:img.height}); } }
+        else { const segH = Math.floor(img.height/frames); for(let i=0;i<frames;i++){ out.push({x:0,y:i*segH,w:img.width,h:(i===frames-1? img.height-i*segH: segH)}); } }
+        return out;
       }
 
-      async function handleZip(file){
-        const zip = await JSZip.loadAsync(file);
-        const allFiles = [];
-        zip.forEach((path, f)=>{ if(!f.dir) allFiles.push({path: sanitizeName(path), file: f, name: sanitizeName(path)}); });
-        const { sequences, singletons } = groupSequences(allFiles.map(x=>({ name: x.path })));
-        const singleSet = new Set(singletons.map(s=>s.name));
+      // Export helpers
+      function downloadBlob(name, blob){ saveAs(blob, name); }
+      function exportJSON(){ const blob = new Blob([JSON.stringify(state.spriteMap, null, 2)], {type:'application/json'}); downloadBlob('spriteMap.json', blob); }
+      function exportJS(){ const js = 'window.spriteMap = '+JSON.stringify(state.spriteMap, null, 2)+';'; const blob = new Blob([js],{type:'application/javascript'}); downloadBlob('spriteMap.js', blob); }
 
-        const mapByName = new Map(allFiles.map(x=>[x.path, x.file]));
+      // Event wiring
+      zipInput.addEventListener('change', async (e)=>{ const f=e.target.files&&e.target.files[0]; if(f) await loadZip(f); });
+      importInput.addEventListener('change', async (e)=>{
+        const f=e.target.files&&e.target.files[0]; if(!f) return; const text = await f.text().catch(()=>null); if(!text){ setStatus('Failed to read config.'); return; }
+        try { const obj = JSON.parse(text); Object.assign(state.spriteMap, obj); updateMapPreview(); setStatus('Config imported.'); }
+        catch { setStatus('Invalid JSON.'); }
+      });
+      exportJsonBtn.addEventListener('click', exportJSON);
+      exportJsBtn.addEventListener('click', exportJS);
 
-        const newAssets = [];
-        // Sequences
-        for (const seq of sequences){
-          const frames = [];
-          for (const f of seq.frames){
-            const zf = mapByName.get(f.name); if(!zf) continue; const blob = await zf.async('blob'); const url = URL.createObjectURL(blob);
-            const img = new Image(); img.decoding='async'; img.src = url; await img.decode().catch(()=>{});
-            frames.push({ name: f.name, url, _img: img });
-          }
-          const nameLeaf = seq.key.split('/').pop() || seq.key;
-          const tags = Array.from(new Set([ 'sequence', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(seq.key) ]));
-          newAssets.push({ id: 'seq:'+seq.key, name: nameLeaf, path: seq.key, type: 'sequence', tags, frames });
-        }
-        // Single images not part of sequences
-        for (const f of allFiles){
-          if (!/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
-          if (!singleSet.has(f.path)) continue; // grouped ones are excluded
-          const blob = await f.file.async('blob'); const url = URL.createObjectURL(blob);
-          const img = new Image(); img.decoding='async'; img.src = url; await img.decode().catch(()=>{});
-          const nameLeaf = f.path.split('/').pop();
-          const tags = Array.from(new Set([ 'image', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(f.path) ]));
-          newAssets.push({ id: 'img:'+f.path, name: nameLeaf, path: f.path, type: 'image', tags, url, _img: img });
-        }
-        // JSON and other files
-        for (const f of allFiles){
-          if (/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
-          const ext = f.path.split('.').pop().toLowerCase();
-          let type = 'other'; if(ext==='json') type='json';
-          const tags = Array.from(new Set([ type, ...inferTagsFromName(f.path) ]));
-          newAssets.push({ id: type+':'+f.path, name: f.path.split('/').pop(), path: f.path, type, tags });
-        }
+      closeModal.addEventListener('click', hideModal);
+      modal.addEventListener('click', (e)=>{ if(e.target===modal) hideModal(); });
 
-        assets = newAssets.sort((a,b)=>a.name.localeCompare(b.name));
-        renderAssetList();
-        const firstVisual = assets.find(a=>a.type==='sequence') || assets.find(a=>a.type==='image');
-        if(firstVisual) selectAsset(firstVisual.id); else { clearAnim(); ctx.clearRect(0,0,canvas.width,canvas.height); previewTitle.textContent='Preview'; }
-      }
+      playBtn.addEventListener('click', ()=>{ const a=state.current; if(!a) return; const frames=Math.max(1,Number(framesInput.value)||1); a._slices = sliceFrames(a._img, frames, 'auto'); playAnim(); });
+      pauseBtn.addEventListener('click', stopAnim);
+      speedInput.addEventListener('input', ()=>{ speedRange.value = speedInput.value; playAnim(); });
+      speedRange.addEventListener('input', ()=>{ speedInput.value = speedRange.value; playAnim(); });
+      framesInput.addEventListener('change', ()=>{ const a=state.current; if(a&&a._img){ a._slices = sliceFrames(a._img, Math.max(1, Number(framesInput.value)||1), 'auto'); drawFrame(a,0); }});
 
-      // Controls
-      playBtn.addEventListener('click', ()=>{ const a=assets.find(x=>x.id===selected); if(!a) return; if(a.type==='sequence') startSequenceAnimation(a); if(a.type==='image') showSingleImage(a); });
-      stopBtn.addEventListener('click', ()=> clearAnim());
-      fpsInput.addEventListener('change', ()=>{ const a=assets.find(x=>x.id===selected); if(a && a.type==='sequence') startSequenceAnimation(a); });
-      scaleInput.addEventListener('change', ()=>{ const a=assets.find(x=>x.id===selected); if(a && a.type==='sequence') startSequenceAnimation(a); if(a && a.type==='image') showSingleImage(a); });
-
-      exportBtn.addEventListener('click', ()=>{
-        const data = assets.map(a=>({ id:a.id, name:a.name, path:a.path, type:a.type, tags:a.tags, frames: a.type==='sequence'? a.frames.map(f=>f.name): undefined }));
-        const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), assets: data }, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href=url; a.download='spxplorer-tags.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      saveBtn.addEventListener('click', ()=>{
+        const a=state.current; if(!a) return; const name=(nameInput.value||'').trim(); if(!name){ alert('Enter a sprite name'); return; }
+        const frames=Math.max(1, Number(framesInput.value)||1); const speed=Math.max(16, Number(speedInput.value)||150); const type=(typeInput.value||'tower');
+        state.spriteMap[name] = { file: a.path, frames, speed, type };
+        updateMapPreview(); setStatus('Saved "'+name+'"');
       });
 
-      // Uploader
-      dropzone.addEventListener('click', ()=> zipInput.click());
-      zipInput.addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(f) await handleZip(f); });
-      ;['dragenter','dragover'].forEach(ev=> dropzone.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); }));
-      ;['dragleave','drop'].forEach(ev=> dropzone.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); }));
-      dropzone.addEventListener('drop', async (e)=>{ const f=e.dataTransfer.files && e.dataTransfer.files[0]; if(f) await handleZip(f); });
+      dlFrameBtn.addEventListener('click', ()=>{
+        const a=state.current; if(!a || !a._img || !a._slices) return; const s=a._slices[state.anim.idx % a._slices.length];
+        const c=document.createElement('canvas'); c.width=s.w; c.height=s.h; const cx=c.getContext('2d'); cx.imageSmoothingEnabled=false; cx.drawImage(a._img, s.x,s.y,s.w,s.h, 0,0,s.w,s.h);
+        c.toBlob(b=>{ if(b) downloadBlob((nameInput.value||a.name||'frame')+'-frame.png', b); }, 'image/png');
+      });
+
+      dlAllBtn.addEventListener('click', async ()=>{
+        const a=state.current; if(!a || !a._img || !a._slices) return; const zip = new JSZip(); let i=0;
+        for(const s of a._slices){ const c=document.createElement('canvas'); c.width=s.w; c.height=s.h; const cx=c.getContext('2d'); cx.imageSmoothingEnabled=false; cx.drawImage(a._img, s.x,s.y,s.w,s.h, 0,0,s.w,s.h); const blob = await new Promise(res=>c.toBlob(res,'image/png')); if(blob) zip.file(((nameInput.value||a.name).replace(/\W+/g,'_')||'sprite')+'_'+String(i++).padStart(2,'0')+'.png', blob); }
+        const out = await zip.generateAsync({type:'blob'}); downloadBlob(((nameInput.value||a.name)||'frames')+'-frames.zip', out);
+      });
     })();
   </script>
 </body>
