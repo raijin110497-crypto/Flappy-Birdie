@@ -135,6 +135,10 @@
       function setStatus(msg, kind='ok'){ statusEl.textContent = msg; statusEl.className = 'status ' + kind; }
 
       function sanitizeName(name){ return name.replace(/\\+/g,'/').replace(/^\//,''); }
+      function isSkippablePath(p){
+        const n = p.toString();
+        return n.startsWith('__MACOSX/') || /(^|\/)\._/.test(n) || /(^|\/)\.DS_Store$/i.test(n) || /(^|\/)Thumbs\.db$/i.test(n);
+      }
 
       function inferTagsFromName(name){
         const n = name.toLowerCase();
@@ -156,7 +160,7 @@
       }
 
       function groupSequences(files){
-        const imageFiles = files.filter(f=>/\.(png|jpg|jpeg|gif)$/i.test(f.name));
+        const imageFiles = files.filter(f=>!/__MACOSX\//.test(f.name) && !/(^|\/)\._/.test(f.name) && /\.(png|jpg|jpeg|gif|webp)$/i.test(f.name));
         const groups = new Map();
         const singletons = [];
         const seqRegex = /^(.*?)(?:[-_\s]?(?:frame|f|sprite|img)?)?[-_\s]?(\d{1,4})(?:@\d+)?\.(png|jpg|jpeg|gif)$/i;
@@ -254,7 +258,7 @@
           setStatus('Loading: ' + (file.name || 'zip') + ' …', 'ok');
           const zip = await JSZip.loadAsync(file).catch((e)=>{ throw new Error('Invalid ZIP or cannot read file.'); });
           const allFiles = [];
-          zip.forEach((path, f)=>{ if(!f.dir) allFiles.push({path: sanitizeName(path), file: f, name: sanitizeName(path)}); });
+          zip.forEach((path, f)=>{ const sp = sanitizeName(path); if(!f.dir && !isSkippablePath(sp)) allFiles.push({path: sp, file: f, name: sp}); });
           const { sequences, singletons } = groupSequences(allFiles.map(x=>({ name: x.path })));
           const singleSet = new Set(singletons.map(s=>s.name));
           const mapByName = new Map(allFiles.map(x=>[x.path, x.file]));
@@ -272,7 +276,7 @@
             newAssets.push({ id: 'seq:'+seq.key, name: nameLeaf, path: seq.key, type: 'sequence', tags, frames });
           }
           for (const f of allFiles){
-            if (!/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
+            if (!/\.(png|jpg|jpeg|gif|webp)$/i.test(f.path)) continue;
             if (!singleSet.has(f.path)) continue;
             const url = await fileToDataUrl(f.file, f.path);
             const img = new Image(); img.decoding='async'; img.src = url; try { await img.decode(); } catch {}
@@ -291,7 +295,7 @@
           assets = newAssets.sort((a,b)=>a.name.localeCompare(b.name));
           renderAssetList();
           const firstVisual = assets.find(a=>a.type==='sequence') || assets.find(a=>a.type==='image');
-          if(firstVisual) { selectAsset(firstVisual.id); setStatus('Loaded '+assets.length+' assets.', 'ok'); }
+          if(firstVisual) { selectAsset(firstVisual.id); setStatus('Loaded '+assets.length+' assets (metadata files skipped).', 'ok'); }
           else { clearAnim(); ctx.clearRect(0,0,canvas.width,canvas.height); previewTitle.textContent='Preview'; setStatus('ZIP loaded, but no images found.', 'error'); }
         } catch (err){
           console.error(err);
