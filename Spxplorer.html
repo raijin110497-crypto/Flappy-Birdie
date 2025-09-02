@@ -19,6 +19,10 @@
     .uploader-input { display: none; }
     .uploader-label { display: inline-block; background-color: #e60012; color: #fff; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
 
+    .status { margin-top: 10px; font-size: 13px; opacity: 0.95; }
+    .status.error { color: #ffe4e6; }
+    .status.ok { color: #eaffea; }
+
     .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
     .panel { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; min-height: 200px; }
     .panel-title { margin: 0 0 10px; font-size: 16px; }
@@ -58,11 +62,12 @@
       </div>
 
       <div id="dropzone" class="uploader" tabindex="0" aria-label="Upload a zip file">
-        <p class="help">Drag & drop a .zip here or</p>
+        <p class="help">On Android, choose the Files app and pick your ZIP.</p>
         <label class="uploader-label">
-          <input id="zipInput" class="uploader-input" type="file" accept=".zip" />
+          <input id="zipInput" class="uploader-input" type="file" accept=".zip,application/zip,application/x-zip-compressed,application/octet-stream,*/*" />
           Choose ZIP
         </label>
+        <div id="status" class="status" aria-live="polite"></div>
       </div>
 
       <div class="layout">
@@ -93,6 +98,7 @@
     (function(){
       const zipInput = document.getElementById('zipInput');
       const dropzone = document.getElementById('dropzone');
+      const statusEl = document.getElementById('status');
       const assetList = document.getElementById('assetList');
       const canvas = document.getElementById('previewCanvas');
       const ctx = canvas.getContext('2d');
@@ -103,16 +109,13 @@
       const exportBtn = document.getElementById('exportBtn');
       const previewTitle = document.getElementById('previewTitle');
 
-      /**
-       * Internal state
-       */
-      let assets = []; // {id, name, path, type: 'image'|'sequence'|'json'|'other', tags: string[], url?, frames?: [{name,url}], width?, height?}
-      let selected = null; // selected asset id
-      let animRAF = null; let animIdx = 0; let animStart = 0; let lastTs = 0;
+      let assets = [];
+      let selected = null;
+      let animRAF = null; let animIdx = 0; let lastTs = 0;
 
-      function sanitizeName(name){
-        return name.replace(/\\+/g,'/').replace(/^\//,'');
-      }
+      function setStatus(msg, kind='ok'){ statusEl.textContent = msg; statusEl.className = 'status ' + kind; }
+
+      function sanitizeName(name){ return name.replace(/\\+/g,'/').replace(/^\//,''); }
 
       function inferTagsFromName(name){
         const n = name.toLowerCase();
@@ -129,7 +132,7 @@
         for (const [key, val] of tagMap){ if (n.includes(key)) tags.add(val); }
         if (/\b(\d{2,})x(\d{2,})\b/.test(n)) tags.add('resolution');
         if (n.endsWith('.json')) tags.add('json');
-        if (n.endsWith('.png')||n.endsWith('.jpg')||n.endsWith('.jpeg')||n.endsWith('.gif')) tags.add('image');
+        if (n.match(/\.(png|jpg|jpeg|gif)$/)) tags.add('image');
         return Array.from(tags);
       }
 
@@ -152,16 +155,8 @@
           }
         }
         const sequences = [];
-        groups.forEach((arr,key)=>{
-          arr.sort((a,b)=>a.idx-b.idx);
-          sequences.push({ key, frames: arr.map(x=>x.file) });
-        });
+        groups.forEach((arr,key)=>{ arr.sort((a,b)=>a.idx-b.idx); sequences.push({ key, frames: arr.map(x=>x.file) }); });
         return { sequences, singletons };
-      }
-
-      async function blobUrl(zip, file){
-        const blob = await file.async('blob');
-        return URL.createObjectURL(blob);
       }
 
       function clearAnim(){ if (animRAF) { cancelAnimationFrame(animRAF); animRAF=null; } }
@@ -181,15 +176,13 @@
         const fps = Math.max(1, Math.min(60, Number(fpsInput.value)||12));
         const scale = Math.max(0.1, Math.min(10, Number(scaleInput.value)||1));
         const interval = 1000 / fps;
-        const frames = asset.frames;
-        const images = frames.map(f=>f._img).filter(Boolean);
+        const images = asset.frames.map(f=>f._img).filter(Boolean);
         if(images.length===0) return;
         previewTitle.textContent = 'Preview: ' + asset.name + ' ('+fps+' fps)';
         animIdx = 0; lastTs = 0;
         function step(ts){
           if(!lastTs) lastTs = ts;
-          const dt = ts - lastTs;
-          if (dt >= interval) {
+          if (ts - lastTs >= interval) {
             lastTs = ts;
             const img = images[animIdx % images.length];
             drawImageToCanvas(img, scale);
@@ -237,60 +230,59 @@
         }
       }
 
-      function asDataUrl(blob){
-        return new Promise((resolve)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.readAsDataURL(blob); });
-      }
-
       async function handleZip(file){
-        const zip = await JSZip.loadAsync(file);
-        const allFiles = [];
-        zip.forEach((path, f)=>{ if(!f.dir) allFiles.push({path: sanitizeName(path), file: f, name: sanitizeName(path)}); });
-        const { sequences, singletons } = groupSequences(allFiles.map(x=>({ name: x.path })));
-        const singleSet = new Set(singletons.map(s=>s.name));
+        try {
+          setStatus('Loading: ' + (file.name || 'zip') + ' …', 'ok');
+          const zip = await JSZip.loadAsync(file).catch((e)=>{ throw new Error('Invalid ZIP or cannot read file.'); });
+          const allFiles = [];
+          zip.forEach((path, f)=>{ if(!f.dir) allFiles.push({path: sanitizeName(path), file: f, name: sanitizeName(path)}); });
+          const { sequences, singletons } = groupSequences(allFiles.map(x=>({ name: x.path })));
+          const singleSet = new Set(singletons.map(s=>s.name));
+          const mapByName = new Map(allFiles.map(x=>[x.path, x.file]));
 
-        const mapByName = new Map(allFiles.map(x=>[x.path, x.file]));
-
-        const newAssets = [];
-        // Sequences
-        for (const seq of sequences){
-          const frames = [];
-          for (const f of seq.frames){
-            const zf = mapByName.get(f.name); if(!zf) continue; const blob = await zf.async('blob'); const url = URL.createObjectURL(blob);
-            const img = new Image(); img.decoding='async'; img.src = url; await img.decode().catch(()=>{});
-            frames.push({ name: f.name, url, _img: img });
+          const newAssets = [];
+          for (const seq of sequences){
+            const frames = [];
+            for (const f of seq.frames){
+              const zf = mapByName.get(f.name); if(!zf) continue; const blob = await zf.async('blob'); const url = URL.createObjectURL(blob);
+              const img = new Image(); img.decoding='async'; img.src = url; try { await img.decode(); } catch {}
+              frames.push({ name: f.name, url, _img: img });
+            }
+            const nameLeaf = seq.key.split('/').pop() || seq.key;
+            const tags = Array.from(new Set([ 'sequence', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(seq.key) ]));
+            newAssets.push({ id: 'seq:'+seq.key, name: nameLeaf, path: seq.key, type: 'sequence', tags, frames });
           }
-          const nameLeaf = seq.key.split('/').pop() || seq.key;
-          const tags = Array.from(new Set([ 'sequence', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(seq.key) ]));
-          newAssets.push({ id: 'seq:'+seq.key, name: nameLeaf, path: seq.key, type: 'sequence', tags, frames });
-        }
-        // Single images not part of sequences
-        for (const f of allFiles){
-          if (!/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
-          if (!singleSet.has(f.path)) continue; // grouped ones are excluded
-          const blob = await f.file.async('blob'); const url = URL.createObjectURL(blob);
-          const img = new Image(); img.decoding='async'; img.src = url; await img.decode().catch(()=>{});
-          const nameLeaf = f.path.split('/').pop();
-          const tags = Array.from(new Set([ 'image', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(f.path) ]));
-          newAssets.push({ id: 'img:'+f.path, name: nameLeaf, path: f.path, type: 'image', tags, url, _img: img });
-        }
-        // JSON and other files
-        for (const f of allFiles){
-          if (/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
-          const ext = f.path.split('.').pop().toLowerCase();
-          let type = 'other'; if(ext==='json') type='json';
-          const tags = Array.from(new Set([ type, ...inferTagsFromName(f.path) ]));
-          newAssets.push({ id: type+':'+f.path, name: f.path.split('/').pop(), path: f.path, type, tags });
-        }
+          for (const f of allFiles){
+            if (!/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
+            if (!singleSet.has(f.path)) continue;
+            const blob = await f.file.async('blob'); const url = URL.createObjectURL(blob);
+            const img = new Image(); img.decoding='async'; img.src = url; try { await img.decode(); } catch {}
+            const nameLeaf = f.path.split('/').pop();
+            const tags = Array.from(new Set([ 'image', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(f.path) ]));
+            newAssets.push({ id: 'img:'+f.path, name: nameLeaf, path: f.path, type: 'image', tags, url, _img: img });
+          }
+          for (const f of allFiles){
+            if (/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
+            const ext = f.path.split('.').pop().toLowerCase();
+            let type = 'other'; if(ext==='json') type='json';
+            const tags = Array.from(new Set([ type, ...inferTagsFromName(f.path) ]));
+            newAssets.push({ id: type+':'+f.path, name: f.path.split('/').pop(), path: f.path, type, tags });
+          }
 
-        assets = newAssets.sort((a,b)=>a.name.localeCompare(b.name));
-        renderAssetList();
-        const firstVisual = assets.find(a=>a.type==='sequence') || assets.find(a=>a.type==='image');
-        if(firstVisual) selectAsset(firstVisual.id); else { clearAnim(); ctx.clearRect(0,0,canvas.width,canvas.height); previewTitle.textContent='Preview'; }
+          assets = newAssets.sort((a,b)=>a.name.localeCompare(b.name));
+          renderAssetList();
+          const firstVisual = assets.find(a=>a.type==='sequence') || assets.find(a=>a.type==='image');
+          if(firstVisual) { selectAsset(firstVisual.id); setStatus('Loaded '+assets.length+' assets.', 'ok'); }
+          else { clearAnim(); ctx.clearRect(0,0,canvas.width,canvas.height); previewTitle.textContent='Preview'; setStatus('ZIP loaded, but no images found.', 'error'); }
+        } catch (err){
+          console.error(err);
+          setStatus('Upload failed. Please ensure it\'s a valid ZIP and try again.', 'error');
+        }
       }
 
       // Controls
-      playBtn.addEventListener('click', ()=>{ const a=assets.find(x=>x.id===selected); if(!a) return; if(a.type==='sequence') startSequenceAnimation(a); if(a.type==='image') showSingleImage(a); });
-      stopBtn.addEventListener('click', ()=> clearAnim());
+      document.getElementById('playBtn').addEventListener('click', ()=>{ const a=assets.find(x=>x.id===selected); if(!a) return; if(a.type==='sequence') startSequenceAnimation(a); if(a.type==='image') showSingleImage(a); });
+      document.getElementById('stopBtn').addEventListener('click', ()=> clearAnim());
       fpsInput.addEventListener('change', ()=>{ const a=assets.find(x=>x.id===selected); if(a && a.type==='sequence') startSequenceAnimation(a); });
       scaleInput.addEventListener('change', ()=>{ const a=assets.find(x=>x.id===selected); if(a && a.type==='sequence') startSequenceAnimation(a); if(a && a.type==='image') showSingleImage(a); });
 
@@ -303,7 +295,7 @@
 
       // Uploader
       dropzone.addEventListener('click', ()=> zipInput.click());
-      zipInput.addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(f) await handleZip(f); });
+      zipInput.addEventListener('change', async (e)=>{ const f=e.target.files && e.target.files[0]; if(f){ await handleZip(f); } else { setStatus('No file selected.', 'error'); } });
       ;['dragenter','dragover'].forEach(ev=> dropzone.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); }));
       ;['dragleave','drop'].forEach(ev=> dropzone.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); }));
       dropzone.addEventListener('drop', async (e)=>{ const f=e.dataTransfer.files && e.dataTransfer.files[0]; if(f) await handleZip(f); });
