@@ -113,6 +113,25 @@
       let selected = null;
       let animRAF = null; let animIdx = 0; let lastTs = 0;
 
+      function extToMime(path){
+        const ext = (path.split('.').pop()||'').toLowerCase();
+        if(ext==='png') return 'image/png';
+        if(ext==='jpg' || ext==='jpeg') return 'image/jpeg';
+        if(ext==='gif') return 'image/gif';
+        if(ext==='webp') return 'image/webp';
+        return 'application/octet-stream';
+      }
+
+      async function fileToDataUrl(zfile, path){
+        try {
+          const base64 = await zfile.async('base64');
+          return 'data:'+extToMime(path)+';base64,'+base64;
+        } catch {
+          const blob = await zfile.async('blob');
+          return URL.createObjectURL(new Blob([blob], { type: extToMime(path) }));
+        }
+      }
+
       function setStatus(msg, kind='ok'){ statusEl.textContent = msg; statusEl.className = 'status ' + kind; }
 
       function sanitizeName(name){ return name.replace(/\\+/g,'/').replace(/^\//,''); }
@@ -244,7 +263,7 @@
           for (const seq of sequences){
             const frames = [];
             for (const f of seq.frames){
-              const zf = mapByName.get(f.name); if(!zf) continue; const blob = await zf.async('blob'); const url = URL.createObjectURL(blob);
+              const zf = mapByName.get(f.name); if(!zf) continue; const url = await fileToDataUrl(zf, f.name);
               const img = new Image(); img.decoding='async'; img.src = url; try { await img.decode(); } catch {}
               frames.push({ name: f.name, url, _img: img });
             }
@@ -255,7 +274,7 @@
           for (const f of allFiles){
             if (!/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
             if (!singleSet.has(f.path)) continue;
-            const blob = await f.file.async('blob'); const url = URL.createObjectURL(blob);
+            const url = await fileToDataUrl(f.file, f.path);
             const img = new Image(); img.decoding='async'; img.src = url; try { await img.decode(); } catch {}
             const nameLeaf = f.path.split('/').pop();
             const tags = Array.from(new Set([ 'image', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(f.path) ]));
