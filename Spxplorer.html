@@ -116,6 +116,7 @@
         </div>
         <button id="exportJsonBtn" class="btn secondary">Export JSON</button>
         <button id="exportJsBtn" class="btn secondary">Export JS</button>
+        <button id="helpBtn" class="btn secondary">How to Use</button>
       </div>
       <div class="status" id="status">Load a ZIP to begin. Offline, local-only. No uploads.</div>
     </div>
@@ -191,6 +192,58 @@
     </div>
   </div>
 
+  <!-- Help Modal -->
+  <div class="modal-backdrop" id="helpModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <header>
+        <h2 id="helpTitle">How to Use Spxplorer</h2>
+        <button id="closeHelp" class="btn secondary">Close</button>
+      </header>
+      <div class="body" style="grid-template-columns: 1fr;">
+        <div class="map-box" style="margin:0;">
+          <ol class="hint" style="line-height:1.6; font-size:14px; color:#e5e7eb;">
+            <li>Tap <strong>Open ZIP</strong> and select your asset pack (.zip). A gallery appears.</li>
+            <li>Tap a thumbnail to open the preview. Adjust <strong>Name</strong>, <strong>Type</strong>, <strong>Frames</strong>, and <strong>Speed</strong>, then <strong>Save to spriteMap</strong>.</li>
+            <li>Repeat for other sprites. Your selections build <strong>spriteMap</strong> (see panel below the grid).</li>
+            <li>Use <strong>Export JSON</strong> or <strong>Export JS</strong> to download your config. Later, use <strong>Import Config</strong> to continue.</li>
+            <li>Use <strong>Download Current Frame</strong> or <strong>Download All Frames (ZIP)</strong> if you need individual PNGs.</li>
+          </ol>
+          <p class="hint" style="margin:8px 0 6px;">Game usage (horizontal strip):</p>
+          <pre><code>// Include exported JS (sets window.spriteMap) or load JSON and assign to window.spriteMap
+const entry = window.spriteMap["archerTower"]; // { file, frames, speed, type }
+const img = new Image();
+img.src = "assets/" + entry.file; // prefix with your assets folder
+img.onload = () => {
+  const canvas = document.querySelector("#game");
+  const ctx = canvas.getContext("2d");
+  const fw = img.width / entry.frames; // frame width (horizontal sheet)
+  const fh = img.height;
+  let f = 0, t = 0;
+  function loop(ts){
+    if(!t) t = ts;
+    if (ts - t >= entry.speed) { t = ts; f = (f + 1) % entry.frames; }
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // draw current frame from the sheet
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, f*fw, 0, fw, fh, 100, 80, fw*2, fh*2);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+};</code></pre>
+          <p class="hint" style="margin:8px 0 6px;">Vertical strip variant:</p>
+          <pre><code>// Use sy instead of sx
+const fh = img.height / entry.frames;
+const fw = img.width;
+ctx.drawImage(img, 0, f*fh, fw, fh, 100, 80, fw*2, fh*2);</code></pre>
+          <p class="hint" style="margin:8px 0 0;">Tip: If auto-detected frames look wrong, set <strong>Frames</strong> manually in the modal before saving.</p>
+        </div>
+      </div>
+      <footer>
+        <span class="hint">All processing happens locally in your browser. No uploads.</span>
+      </footer>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
   <script>
@@ -219,6 +272,9 @@
       const dlFrameBtn = document.getElementById('dlFrameBtn');
       const dlAllBtn = document.getElementById('dlAllBtn');
       const fileInfo = document.getElementById('fileInfo');
+      const helpBtn = document.getElementById('helpBtn');
+      const helpModal = document.getElementById('helpModal');
+      const closeHelp = document.getElementById('closeHelp');
 
       const SKIP_REGEX = /(^__MACOSX\/)||(\/(?:\._|\.DS_Store|Thumbs\.db)$)/i;
       const IMG_REGEX = /\.(png|jpg|jpeg)$/i;
@@ -408,6 +464,9 @@
 
       closeModal.addEventListener('click', hideModal);
       modal.addEventListener('click', (e)=>{ if(e.target===modal) hideModal(); });
+      helpBtn.addEventListener('click', ()=> helpModal.classList.add('open'));
+      closeHelp.addEventListener('click', ()=> helpModal.classList.remove('open'));
+      helpModal.addEventListener('click', (e)=>{ if(e.target===helpModal) helpModal.classList.remove('open'); });
 
       playBtn.addEventListener('click', ()=>{ const a=state.current; if(!a) return; const frames=Math.max(1,Number(framesInput.value)||1); a._slices = sliceFrames(a._img, frames, 'auto'); playAnim(); });
       pauseBtn.addEventListener('click', stopAnim);
