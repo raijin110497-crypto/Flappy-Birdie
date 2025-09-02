@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spxplorer</title>
+  <style>
+    body { margin: 0; padding: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: #6aabc5; font-family: 'Courier New', Courier, monospace; }
+    .page-shell { width: 100%; max-width: 1000px; padding: 24px; }
+    .hero-card { background: linear-gradient(to bottom, #6aabc5 0%, #87CEEB 100%); box-shadow: 0 0 20px rgba(0,0,0,0.3); border-radius: 12px; padding: 24px; color: #fff; }
+    .title { margin: 0 0 8px; font-size: 36px; text-align: center; }
+    .subtitle { margin: 0 0 16px; font-size: 16px; opacity: 0.95; text-align: center; }
+    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .action-link { display: inline-block; background-color: #e60012; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; text-decoration: none; font-size: 15px; cursor: pointer; }
+    .action-link:hover { background-color: #c5000f; }
+
+    .uploader { border: 2px dashed rgba(255,255,255,0.6); border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 16px; background: rgba(255,255,255,0.08); }
+    .uploader.dragover { background: rgba(255,255,255,0.18); }
+    .uploader-input { display: none; }
+    .uploader-label { display: inline-block; background-color: #e60012; color: #fff; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+
+    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+    .panel { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; min-height: 200px; }
+    .panel-title { margin: 0 0 10px; font-size: 16px; }
+
+    .asset-list { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 520px; overflow: auto; }
+    .asset-item { display: grid; grid-template-columns: 56px 1fr; gap: 8px; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.2); align-items: center; cursor: pointer; }
+    .asset-item:hover { background: rgba(0,0,0,0.3); }
+    .thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,0.1); }
+    .meta { overflow: hidden; }
+    .name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .tag { background: rgba(255,255,255,0.15); padding: 2px 6px; border-radius: 999px; font-size: 11px; }
+
+    .preview { display: grid; grid-template-rows: auto auto 1fr; gap: 12px; }
+    .canvas-wrap { display: grid; place-items: center; background: rgba(0,0,0,0.25); border-radius: 12px; min-height: 260px; overflow: hidden; }
+    canvas { background: transparent; max-width: 100%; }
+
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .input { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.25); color: #fff; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+    .btn { background-color: #e60012; color: #fff; border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 14px; }
+    .btn.secondary { background: rgba(255,255,255,0.15); }
+    .btn:hover { filter: brightness(0.95); }
+
+    .help { font-size: 12px; opacity: 0.9; margin: 0; }
+
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <section class="hero-card" aria-labelledby="spxplorer-title">
+      <h1 id="spxplorer-title" class="title">Spxplorer</h1>
+      <p class="subtitle">Drop a .zip of your sprites and assets to preview animations and auto-tag files.</p>
+      <div class="actions">
+        <a class="action-link" href="Flappy%20Birdie.html">Play Mario Flappy Bird</a>
+        <a class="action-link" href="index.html">Go to Index</a>
+      </div>
+
+      <div id="dropzone" class="uploader" tabindex="0" aria-label="Upload a zip file">
+        <p class="help">Drag & drop a .zip here or</p>
+        <label class="uploader-label">
+          <input id="zipInput" class="uploader-input" type="file" accept=".zip" />
+          Choose ZIP
+        </label>
+      </div>
+
+      <div class="layout">
+        <aside class="panel">
+          <h3 class="panel-title">Assets</h3>
+          <div id="assetList" class="asset-list"></div>
+        </aside>
+        <section class="panel preview">
+          <h3 class="panel-title" id="previewTitle">Preview</h3>
+          <div class="controls">
+            <label>FPS <input id="fpsInput" class="input" type="number" min="1" max="60" step="1" value="12" /></label>
+            <label>Scale <input id="scaleInput" class="input" type="number" min="0.1" max="10" step="0.1" value="2" /></label>
+            <button id="playBtn" class="btn">Play</button>
+            <button id="stopBtn" class="btn secondary">Stop</button>
+            <button id="exportBtn" class="btn secondary">Export Tags JSON</button>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="previewCanvas" width="320" height="240" aria-label="Animation preview"></canvas>
+          </div>
+          <p class="help">Tips: Filenames like hero_run_0.png, hero_run_1.png will auto-group. Common keywords (idle, run, walk, jump, attack, hit, death, ui, bg, tile, enemy) are auto-tagged.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    (function(){
+      const zipInput = document.getElementById('zipInput');
+      const dropzone = document.getElementById('dropzone');
+      const assetList = document.getElementById('assetList');
+      const canvas = document.getElementById('previewCanvas');
+      const ctx = canvas.getContext('2d');
+      const fpsInput = document.getElementById('fpsInput');
+      const scaleInput = document.getElementById('scaleInput');
+      const playBtn = document.getElementById('playBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const exportBtn = document.getElementById('exportBtn');
+      const previewTitle = document.getElementById('previewTitle');
+
+      /**
+       * Internal state
+       */
+      let assets = []; // {id, name, path, type: 'image'|'sequence'|'json'|'other', tags: string[], url?, frames?: [{name,url}], width?, height?}
+      let selected = null; // selected asset id
+      let animRAF = null; let animIdx = 0; let animStart = 0; let lastTs = 0;
+
+      function sanitizeName(name){
+        return name.replace(/\\+/g,'/').replace(/^\//,'');
+      }
+
+      function inferTagsFromName(name){
+        const n = name.toLowerCase();
+        const tags = new Set();
+        const tagMap = [
+          ['idle','idle'],['run','run'],['walk','walk'],['jump','jump'],['fall','fall'],['attack','attack'],['hit','hit'],['hurt','hurt'],['death','death'],['die','death'],
+          ['shoot','shoot'],['slash','slash'],['roll','roll'],['climb','climb'],
+          ['enemy','enemy'],['boss','boss'],['player','player'],['hero','player'],['npc','npc'],
+          ['ui','ui'],['hud','ui'],['button','ui'],['icon','ui'],
+          ['bg','background'],['background','background'],['parallax','background'],
+          ['tile','tileset'],['tiles','tileset'],['tileset','tileset'],['atlas','atlas'],
+          ['coin','coin'],['gem','gem'],['star','star'],['power','powerup'],['powerup','powerup']
+        ];
+        for (const [key, val] of tagMap){ if (n.includes(key)) tags.add(val); }
+        if (/\b(\d{2,})x(\d{2,})\b/.test(n)) tags.add('resolution');
+        if (n.endsWith('.json')) tags.add('json');
+        if (n.endsWith('.png')||n.endsWith('.jpg')||n.endsWith('.jpeg')||n.endsWith('.gif')) tags.add('image');
+        return Array.from(tags);
+      }
+
+      function groupSequences(files){
+        const imageFiles = files.filter(f=>/\.(png|jpg|jpeg|gif)$/i.test(f.name));
+        const groups = new Map();
+        const singletons = [];
+        const seqRegex = /^(.*?)(?:[-_\s]?(?:frame|f|sprite|img)?)?[-_\s]?(\d{1,4})(?:@\d+)?\.(png|jpg|jpeg|gif)$/i;
+        for(const f of imageFiles){
+          const base = f.name.split('/').slice(0,-1).join('/');
+          const leaf = f.name.split('/').pop();
+          const m = leaf.match(seqRegex);
+          if(m){
+            const key = (base?base+'/':'') + m[1].replace(/[-_\s]+$/,'');
+            const idx = parseInt(m[2],10);
+            if(!groups.has(key)) groups.set(key, []);
+            groups.get(key).push({file:f, idx});
+          } else {
+            singletons.push(f);
+          }
+        }
+        const sequences = [];
+        groups.forEach((arr,key)=>{
+          arr.sort((a,b)=>a.idx-b.idx);
+          sequences.push({ key, frames: arr.map(x=>x.file) });
+        });
+        return { sequences, singletons };
+      }
+
+      async function blobUrl(zip, file){
+        const blob = await file.async('blob');
+        return URL.createObjectURL(blob);
+      }
+
+      function clearAnim(){ if (animRAF) { cancelAnimationFrame(animRAF); animRAF=null; } }
+
+      function drawImageToCanvas(img, scale=1){
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const cw = canvas.width, ch = canvas.height;
+        ctx.clearRect(0,0,cw,ch);
+        const x = Math.floor((cw - w)/2); const y = Math.floor((ch - h)/2);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, x, y, w, h);
+      }
+
+      function startSequenceAnimation(asset){
+        clearAnim();
+        const fps = Math.max(1, Math.min(60, Number(fpsInput.value)||12));
+        const scale = Math.max(0.1, Math.min(10, Number(scaleInput.value)||1));
+        const interval = 1000 / fps;
+        const frames = asset.frames;
+        const images = frames.map(f=>f._img).filter(Boolean);
+        if(images.length===0) return;
+        previewTitle.textContent = 'Preview: ' + asset.name + ' ('+fps+' fps)';
+        animIdx = 0; lastTs = 0;
+        function step(ts){
+          if(!lastTs) lastTs = ts;
+          const dt = ts - lastTs;
+          if (dt >= interval) {
+            lastTs = ts;
+            const img = images[animIdx % images.length];
+            drawImageToCanvas(img, scale);
+            animIdx++;
+          }
+          animRAF = requestAnimationFrame(step);
+        }
+        animRAF = requestAnimationFrame(step);
+      }
+
+      function showSingleImage(asset){
+        clearAnim();
+        const scale = Math.max(0.1, Math.min(10, Number(scaleInput.value)||1));
+        previewTitle.textContent = 'Preview: ' + asset.name;
+        const img = asset._img; if(!img) return; drawImageToCanvas(img, scale);
+      }
+
+      function selectAsset(id){
+        const a = assets.find(x=>x.id===id); if(!a) return; selected = id;
+        document.querySelectorAll('.asset-item').forEach(el=>{ el.style.outline = el.dataset.id===id? '2px solid #e60012' : 'none'; });
+        if (a.type==='sequence') startSequenceAnimation(a); else if (a.type==='image') showSingleImage(a); else { clearAnim(); ctx.clearRect(0,0,canvas.width,canvas.height); previewTitle.textContent = 'Preview: ' + a.name; }
+      }
+
+      function renderAssetList(){
+        assetList.innerHTML='';
+        for (const a of assets){
+          const item = document.createElement('div');
+          item.className='asset-item'; item.dataset.id=a.id;
+          const img = document.createElement('img'); img.className='thumb';
+          if (a.type==='image') img.src = a.url; else if (a.type==='sequence' && a.frames[0] && a.frames[0].url) img.src = a.frames[0].url; else img.style.background='rgba(255,255,255,0.08)';
+          const meta = document.createElement('div'); meta.className='meta';
+          const name = document.createElement('p'); name.className='name'; name.textContent = a.name;
+          const tags = document.createElement('div'); tags.className='tags';
+          for (const t of a.tags){ const s=document.createElement('span'); s.className='tag'; s.textContent=t; tags.appendChild(s); }
+          const tagInput = document.createElement('input'); tagInput.className='input'; tagInput.placeholder='add tag, press Enter'; tagInput.style.marginTop='6px';
+          tagInput.addEventListener('keydown', (e)=>{
+            if(e.key==='Enter' && tagInput.value.trim()){
+              const val = tagInput.value.trim(); if(!a.tags.includes(val)) a.tags.push(val); tagInput.value=''; renderAssetList();
+            }
+          });
+          meta.appendChild(name); meta.appendChild(tags); meta.appendChild(tagInput);
+          item.appendChild(img); item.appendChild(meta);
+          item.addEventListener('click', ()=> selectAsset(a.id));
+          assetList.appendChild(item);
+        }
+      }
+
+      function asDataUrl(blob){
+        return new Promise((resolve)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.readAsDataURL(blob); });
+      }
+
+      async function handleZip(file){
+        const zip = await JSZip.loadAsync(file);
+        const allFiles = [];
+        zip.forEach((path, f)=>{ if(!f.dir) allFiles.push({path: sanitizeName(path), file: f, name: sanitizeName(path)}); });
+        const { sequences, singletons } = groupSequences(allFiles.map(x=>({ name: x.path })));
+        const singleSet = new Set(singletons.map(s=>s.name));
+
+        const mapByName = new Map(allFiles.map(x=>[x.path, x.file]));
+
+        const newAssets = [];
+        // Sequences
+        for (const seq of sequences){
+          const frames = [];
+          for (const f of seq.frames){
+            const zf = mapByName.get(f.name); if(!zf) continue; const blob = await zf.async('blob'); const url = URL.createObjectURL(blob);
+            const img = new Image(); img.decoding='async'; img.src = url; await img.decode().catch(()=>{});
+            frames.push({ name: f.name, url, _img: img });
+          }
+          const nameLeaf = seq.key.split('/').pop() || seq.key;
+          const tags = Array.from(new Set([ 'sequence', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(seq.key) ]));
+          newAssets.push({ id: 'seq:'+seq.key, name: nameLeaf, path: seq.key, type: 'sequence', tags, frames });
+        }
+        // Single images not part of sequences
+        for (const f of allFiles){
+          if (!/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
+          if (!singleSet.has(f.path)) continue; // grouped ones are excluded
+          const blob = await f.file.async('blob'); const url = URL.createObjectURL(blob);
+          const img = new Image(); img.decoding='async'; img.src = url; await img.decode().catch(()=>{});
+          const nameLeaf = f.path.split('/').pop();
+          const tags = Array.from(new Set([ 'image', ...inferTagsFromName(nameLeaf), ...inferTagsFromName(f.path) ]));
+          newAssets.push({ id: 'img:'+f.path, name: nameLeaf, path: f.path, type: 'image', tags, url, _img: img });
+        }
+        // JSON and other files
+        for (const f of allFiles){
+          if (/\.(png|jpg|jpeg|gif)$/i.test(f.path)) continue;
+          const ext = f.path.split('.').pop().toLowerCase();
+          let type = 'other'; if(ext==='json') type='json';
+          const tags = Array.from(new Set([ type, ...inferTagsFromName(f.path) ]));
+          newAssets.push({ id: type+':'+f.path, name: f.path.split('/').pop(), path: f.path, type, tags });
+        }
+
+        assets = newAssets.sort((a,b)=>a.name.localeCompare(b.name));
+        renderAssetList();
+        const firstVisual = assets.find(a=>a.type==='sequence') || assets.find(a=>a.type==='image');
+        if(firstVisual) selectAsset(firstVisual.id); else { clearAnim(); ctx.clearRect(0,0,canvas.width,canvas.height); previewTitle.textContent='Preview'; }
+      }
+
+      // Controls
+      playBtn.addEventListener('click', ()=>{ const a=assets.find(x=>x.id===selected); if(!a) return; if(a.type==='sequence') startSequenceAnimation(a); if(a.type==='image') showSingleImage(a); });
+      stopBtn.addEventListener('click', ()=> clearAnim());
+      fpsInput.addEventListener('change', ()=>{ const a=assets.find(x=>x.id===selected); if(a && a.type==='sequence') startSequenceAnimation(a); });
+      scaleInput.addEventListener('change', ()=>{ const a=assets.find(x=>x.id===selected); if(a && a.type==='sequence') startSequenceAnimation(a); if(a && a.type==='image') showSingleImage(a); });
+
+      exportBtn.addEventListener('click', ()=>{
+        const data = assets.map(a=>({ id:a.id, name:a.name, path:a.path, type:a.type, tags:a.tags, frames: a.type==='sequence'? a.frames.map(f=>f.name): undefined }));
+        const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), assets: data }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='spxplorer-tags.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      });
+
+      // Uploader
+      dropzone.addEventListener('click', ()=> zipInput.click());
+      zipInput.addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(f) await handleZip(f); });
+      ;['dragenter','dragover'].forEach(ev=> dropzone.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); }));
+      ;['dragleave','drop'].forEach(ev=> dropzone.addEventListener(ev, (e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); }));
+      dropzone.addEventListener('drop', async (e)=>{ const f=e.dataTransfer.files && e.dataTransfer.files[0]; if(f) await handleZip(f); });
+    })();
+  </script>
+</body>
+</html>
